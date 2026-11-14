@@ -1,0 +1,9 @@
+jarvis-channel-slack
+Copyright 2026 Alex Berardi
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+The behaviour of this channel (direct messages and one channel, a thread per
+conversation, the commands, silence towards accounts that are not linked,
+opt-in reminders) follows the Discord bridge contributed by opticon454 in
+jarvis-server pull request 649.

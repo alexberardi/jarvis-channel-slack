@@ -1,0 +1,42 @@
+name: "slack"
+display_name: "Slack"
+description: "Talk to Jarvis from Slack. Message your own Slack app in a direct message or in one channel of your workspace, send photos, use the /jarvis command, and get your reminders in your direct messages if you turn that on. Each person links their Slack account with a code from the Jarvis app; nobody else gets an answer."
+version: "0.1.0"
+# IJarvisDaemon is 0.17.0; the Channel helper this package talks through is 0.18.0.
+min_sdk_version: "0.18.0"
+license: Apache-2.0
+author:
+  github: "alexberardi"
+categories: ["communication"]
+platforms: ["darwin", "linux", "windows"]
+keywords: ["slack", "chat", "channel", "bot", "messages", "reminders"]
+
+components:
+  - type: daemon
+    name: slack
+    path: daemons/slack/daemon.py
+
+packages:
+  - name: slack_bolt
+    version: ">=1.20,<2"
+  - name: aiohttp
+    version: ">=3.9,<4"
+
+secrets:
+  - key: SLACK_BOT_TOKEN
+    scope: integration
+    value_type: string
+    description: "Your Slack app's bot token (starts with xoxb-)"
+    friendly_name: "Bot token"
+  - key: SLACK_APP_TOKEN
+    scope: integration
+    value_type: string
+    description: "Your Slack app's app-level token for Socket Mode (starts with xapp-)"
+    friendly_name: "App token"
+  - key: SLACK_CHANNEL_ID
+    scope: integration
+    value_type: string
+    description: "ID of the one channel Jarvis answers in. Leave empty for direct messages only."
+    friendly_name: "Jarvis channel ID"
+    required: false
+    is_sensitive: false
