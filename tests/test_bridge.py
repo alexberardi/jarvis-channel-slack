@@ -18,8 +18,9 @@ class FakeJarvis:
     def __init__(self, reply=ChannelReply(linked=True, say="hi")):
         self.reply, self.asked, self.commands = reply, [], []
 
-    async def message(self, uid, place, text="", images=()):
+    async def message(self, uid, place, text="", images=(), audio=b""):
         self.asked.append((uid, place, text, list(images)))
+        self.heard_audio = audio
         return self.reply
 
     async def command(self, uid, place, name, **args):
@@ -109,6 +110,17 @@ def test_photos_go_along_and_the_size_limit_leaves_one_out():
              {"mimetype": "image/png", "url_private": "missing", "size": 4}]
     run(b.on_message(dm("", subtype="file_share", files=files), FakeSlack()))
     assert [(i.data, i.mime) for i in b.channel.asked[0][3]] == [(b"jpeg", "image/jpeg"), (b"png!", "image/png")]
+
+
+def test_a_voice_clip_is_converted_and_what_jarvis_heard_goes_above_the_answer(monkeypatch):
+    monkeypatch.setattr("daemons.slack.daemon.clip_to_wav", lambda data: b"WAV:" + data)
+    b = bridge(FakeJarvis(ChannelReply(linked=True, say="Yes, until six.", heard="is <!channel> open")), files={"clip": b"aac"})
+    slack = FakeSlack()
+    # A phone's clip: Slack's recorder marks it, whatever its type says.
+    files = [{"mimetype": "video/mp4", "subtype": "slack_audio", "url_private": "clip", "size": 3}]
+    run(b.on_message(dm("", subtype="file_share", files=files), slack))
+    assert b.channel.heard_audio == b"WAV:aac"
+    assert [p[1] for p in slack.posts] == ["> 🎤 is &lt;!channel&gt; open", "Yes, until six."]
 
 
 def test_a_reply_is_split_and_can_mention_nobody():

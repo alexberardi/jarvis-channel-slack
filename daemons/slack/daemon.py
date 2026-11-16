@@ -11,6 +11,7 @@ no reaction.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Awaitable, Callable, List
 
@@ -23,6 +24,7 @@ from jarvis_command_sdk import (
     JarvisSecret,
     JarvisStorage,
     Outgoing,
+    clip_to_wav,
     split_reply,
 )
 from slack_bolt.adapter.socket_mode.async_handler import AsyncSocketModeHandler
@@ -36,6 +38,7 @@ PROVIDER = "slack"
 MAX_REPLY = 3000  # Slack asks for under 4000 characters; escaping can add some
 MAX_IMAGES = 4  # what one Jarvis chat turn takes
 MAX_IMAGE_BYTES = 10 << 20  # a message's photos together: the request to Jarvis is one line of at most 16 MiB, base64
+MAX_CLIP_BYTES = 8 << 20  # a voice clip as Slack stores it; Jarvis takes two minutes
 SEEN, DONE, FAILED = "eyes", "white_check_mark", "x"
 ELSEWHERE = "I only work in direct messages and in the Jarvis channel."
 UNREACHABLE = "I can't reach Jarvis right now. Try again in a moment."
@@ -81,8 +84,11 @@ class Bridge:
         else:
             return
         text = (event.get("text") or "").replace(f"<@{self.bot_id}>", "").strip()
-        photos = [f for f in event.get("files") or [] if (f.get("mimetype") or "").startswith("image/")]
-        if not text and not photos:
+        files = event.get("files") or []
+        photos = [f for f in files if (f.get("mimetype") or "").startswith("image/")]
+        # Slack's own recorder marks its clips; an audio file someone attached counts too.
+        clips = [f for f in files if f.get("subtype") == "slack_audio" or (f.get("mimetype") or "").startswith("audio/")]
+        if not text and not photos and not clips:
             return
 
         uid = event["user"]
@@ -97,9 +103,12 @@ class Bridge:
         if known:
             await react(SEEN)
         images = await self._read_images(photos)
-        if not text and not images:
+        audio = await self._read_clip(clips)
+        if not text and not images and not audio:
+            if known:  # all they sent was something we couldn't read
+                await react(FAILED)
             return
-        reply = await self.channel.message(uid, place, text, images)
+        reply = await self.channel.message(uid, place, text, images, audio)
         if reply is None:
             if known:
                 await react(FAILED)
@@ -108,6 +117,9 @@ class Bridge:
             self.known.discard(uid)
             return
         self.known.add(uid)
+        if reply.heard:  # what Jarvis heard in a voice clip, above its answer, so a mishearing shows
+            heard = escape(" ".join(reply.heard.split()))[:MAX_REPLY]
+            await client.chat_postMessage(channel=where, text=f"> 🎤 {heard}", thread_ts=thread)
         for part in split_reply(reply.say, MAX_REPLY):
             if part:
                 await client.chat_postMessage(channel=where, text=escape(part), thread_ts=thread)
@@ -126,6 +138,21 @@ class Bridge:
             total += len(data)
             out.append(ChannelImage(data, f["mimetype"]))
         return out
+
+    async def _read_clip(self, files: list[dict]) -> bytes:
+        """The message's voice clip (its first) as the WAV Jarvis takes, or b"" without one."""
+        for f in files[:1]:
+            url = f.get("url_private") or ""
+            if not url or not self.fetch or int(f.get("size") or 0) > MAX_CLIP_BYTES:
+                break
+            data = await self.fetch(url)
+            if not data:
+                break
+            try:
+                return await asyncio.to_thread(clip_to_wav, data)
+            except ValueError as exc:
+                _log.warning("slack: could not read a voice clip: %s", exc)
+        return b""
 
     async def on_command(self, command: dict, respond) -> None:
         """A /jarvis command. Its answer is shown only to the person who asked."""
@@ -165,7 +192,7 @@ class SlackChannel(IJarvisDaemon):
 
     @property
     def description(self) -> str:
-        return "Talk to Jarvis from Slack: direct messages, one channel, photos, commands and reminders"
+        return "Talk to Jarvis from Slack: direct messages, one channel, photos, voice clips, commands and reminders"
 
     @property
     def required_secrets(self) -> List[IJarvisSecret]:
@@ -193,8 +220,8 @@ class SlackChannel(IJarvisDaemon):
             async def fetch(url: str) -> bytes | None:
                 # Slack's file links answer a sign-in page, not the file, without the files:read scope.
                 async with http.get(url, allow_redirects=False) as resp:
-                    if resp.status != 200 or not resp.content_type.startswith("image/"):
-                        _log.warning("slack: could not fetch a photo (status %s, %s)", resp.status, resp.content_type)
+                    if resp.status != 200 or not resp.content_type.startswith(("image/", "audio/", "video/")):
+                        _log.warning("slack: could not fetch a file (status %s, %s)", resp.status, resp.content_type)
                         return None
                     return await resp.read()  # its size was checked against the limit before asking
 

@@ -12,6 +12,8 @@ It is a Jarvis Automation package (one daemon) that nodes install through Pantry
 - **One channel.** In the channel you choose, Jarvis answers each message in its thread. What you
   say in that thread continues the same conversation.
 - **Photos.** Attach a photo and ask about it. Up to four per message, 10 MB together.
+- **Voice clips.** Record a clip, up to two minutes. Jarvis answers in text and shows what it
+  heard above the answer.
 - **Commands.** `/jarvis link CODE`, `/jarvis new`, `/jarvis node NAME`, `/jarvis notify on` or
   `off`, `/jarvis status`. Answers are shown only to you.
 - **Reminders.** If you turn them on (`/jarvis notify on`), reminders, alarms and timers you set

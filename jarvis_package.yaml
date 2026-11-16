@@ -1,9 +1,9 @@
 name: "slack"
 display_name: "Slack"
-description: "Talk to Jarvis from Slack. Message your own Slack app in a direct message or in one channel of your workspace, send photos, use the /jarvis command, and get your reminders in your direct messages if you turn that on. Each person links their Slack account with a code from the Jarvis app; nobody else gets an answer."
-version: "0.1.0"
-# IJarvisDaemon is 0.17.0; the Channel helper this package talks through is 0.18.0.
-min_sdk_version: "0.18.0"
+description: "Talk to Jarvis from Slack. Message your own Slack app in a direct message or in one channel of your workspace, send photos and voice clips, use the /jarvis command, and get your reminders in your direct messages if you turn that on. Each person links their Slack account with a code from the Jarvis app; nobody else gets an answer."
+version: "0.2.0"
+# IJarvisDaemon is 0.17.0, the Channel helper 0.18.0, voice clips 0.19.0.
+min_sdk_version: "0.19.0"
 license: Apache-2.0
 author:
   github: "alexberardi"
@@ -21,6 +21,9 @@ packages:
     version: ">=1.20,<2"
   - name: aiohttp
     version: ">=3.9,<4"
+  # Voice clips: the SDK's clip_to_wav converts what Slack records with it.
+  - name: av
+    version: ">=14,<20"
 
 secrets:
   - key: SLACK_BOT_TOKEN
